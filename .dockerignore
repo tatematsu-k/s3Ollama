@@ -1,0 +1,9 @@
+.git
+__pycache__
+*.pyc
+.terraform
+.terraform.lock.hcl
+terraform.tfstate*
+.env
+.DS_Store
+.pytest_cache
