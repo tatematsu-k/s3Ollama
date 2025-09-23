@@ -9,7 +9,7 @@ PYTEST_SCRIPT ?= ./scripts/run_pytest.sh
 
 .PHONY: help
 help: ## Show available make targets
-	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*## / {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 .PHONY: install
 install: ## Install Python dependencies locally
@@ -43,7 +43,12 @@ test-local: ## Run unit tests locally without Docker
 
 .PHONY: lint
 lint: ensure-image ## Run basic static checks inside Docker
-	$(DOCKER_RUN) python -m compileall lambda job
+	@if command -v docker >/dev/null 2>&1; then \
+		$(DOCKER_RUN) python -m compileall lambda job; \
+	else \
+		echo "Docker CLI not available; running lint on the host"; \
+		$(MAKE) lint-local; \
+	fi
 
 .PHONY: lint-local
 lint-local: ## Run basic static checks locally without Docker
