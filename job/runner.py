@@ -16,21 +16,42 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - exercised only when boto3 missing locally
     boto3 = None  # type: ignore
 
+try:
+    from botocore.exceptions import NoRegionError  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover - exercised when botocore unavailable
+    class NoRegionError(Exception):  # type: ignore
+        """Fallback exception used when botocore isn't installed locally."""
+
+        pass
+
 LOGGER = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
+class _MissingClient:
+    """Placeholder for boto3 clients when AWS dependencies aren't configured."""
+
+    def __init__(self, service_name: str, reason: str) -> None:
+        self._service_name = service_name
+        self._reason = reason
+
+    def __getattr__(self, item: str):  # pragma: no cover - exercised only when misconfigured
+        raise RuntimeError(
+            "Unable to use boto3 client for '%s' (attempted attribute '%s'): %s"
+            % (self._service_name, item, self._reason)
+        )
+
+
 def _create_boto3_client(service_name: str):
     if boto3 is None:  # pragma: no cover - exercised when boto3 unavailable
-        class _MissingClient:
-            def __getattr__(self, item: str):
-                raise RuntimeError(
-                    "boto3 is required for service '%s'; attempted to access '%s'. "
-                    "Install boto3 to use this functionality." % (service_name, item)
-                )
+        return _MissingClient(service_name, "boto3 is not installed")
 
-        return _MissingClient()
-
-    return boto3.client(service_name)
+    try:
+        return boto3.client(service_name)
+    except NoRegionError:  # pragma: no cover - exercised when AWS region is not configured
+        return _MissingClient(
+            service_name,
+            "AWS region is not configured. Set AWS_REGION or AWS_DEFAULT_REGION to create clients.",
+        )
 
 
 S3_CLIENT = _create_boto3_client("s3")
