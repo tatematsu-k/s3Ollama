@@ -13,6 +13,7 @@ RUN apt-get update \
         unzip \
         ca-certificates \
         git \
+        make \
     && rm -rf /var/lib/apt/lists/*
 
 RUN curl -fsSL https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip \

@@ -36,22 +36,26 @@
 
 ## 開発環境の立ち上げ
 
-### ローカル実行
+### Docker を利用したワークフロー
+
+デフォルトの `make` ターゲットは Docker イメージを利用してテストや Terraform コマンドを実行します。Docker がインストールされていれば、次のコマンドで一通りの検証が可能です。
 
 ```bash
-make install
-make lint
-make test
+make docker-build      # 依存関係を含む開発用イメージをビルド
+make lint              # Docker 経由で静的チェックを実行
+make test              # Docker 経由でユニットテストを実行
+make terraform-fmt     # Docker 経由で Terraform のフォーマット
 ```
 
-### Docker コンテナ
+### ローカルで直接実行したい場合
+
+Python や Terraform をローカルにインストールしている場合は、`*-local` 系のターゲットでホスト上から直接コマンドを実行できます。
 
 ```bash
-make docker-build
-make docker-shell
+make install           # ローカル環境に依存関係をインストール
+make lint-local        # ホスト上で静的チェック
+make test-local        # ホスト上でユニットテスト
 ```
-
-コンテナ内では `/workspace` にソースコードがマウントされており、`make test` などのコマンドをそのまま実行できます。
 
 ## CI / テスト
 

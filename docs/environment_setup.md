@@ -3,7 +3,8 @@
 ## 前提条件
 
 - macOS / Linux 環境を想定
-- [Terraform](https://developer.hashicorp.com/terraform/downloads) 1.5 以上
+- [Docker](https://www.docker.com/) 20 以上
+- （任意）[Terraform](https://developer.hashicorp.com/terraform/downloads) 1.5 以上（Docker を使わずローカルで実行する場合）
 - [AWS CLI v2](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html)
 - Terraform 実行用 IAM ユーザー/ロール (AdministratorAccess 相当)
 - AWS Batch から利用可能な VPC / サブネット (プライベート/パブリックどちらでも可、インターネットアクセス可能なルートが必要)
@@ -16,20 +17,27 @@ git clone https://github.com/your-org/s3Ollama.git
 cd s3Ollama
 ```
 
-## 1.1 ローカル開発環境 (任意)
+## 1.1 Docker ベースの開発ワークフロー
 
-Python 依存関係は `Makefile` からインストールできます。
+`Makefile` の主要ターゲットは Docker を利用しており、依存関係をホストへインストールすることなくテストや Terraform のコマンドを実行できます。
 
 ```bash
-make install
-make test
+make docker-build      # 依存関係込みの開発用イメージをビルド
+make lint              # Docker 経由で静的チェック
+make test              # Docker 経由でユニットテスト
+make terraform-plan    # Docker 経由で terraform plan
 ```
 
-Docker ベースの開発環境を利用する場合は、以下のコマンドでビルドとシェル起動が可能です。
+コンテナの中で手作業を行いたい場合は `make docker-shell` でシェルを起動できます。
+
+## 1.2 ローカル環境に直接セットアップしたい場合 (任意)
+
+Python や Terraform をホストにインストールしている場合は、`*-local` 系のターゲットで同等のコマンドを実行できます。
 
 ```bash
-make docker-build
-make docker-shell
+make install           # ローカル環境に Python 依存関係をインストール
+make lint-local        # ホスト上で静的チェック
+make test-local        # ホスト上でユニットテスト
 ```
 
 ## 2. Terraform 変数の設定
@@ -59,10 +67,10 @@ default_tags = {
 ## 3. Terraform の初期化とデプロイ
 
 ```bash
-cd infrastructure/terraform
-terraform init
-terraform plan
-terraform apply
+make terraform-init
+make terraform-fmt
+make terraform-plan
+make terraform-apply
 ```
 
 `terraform apply` が完了すると、以下が出力されます。
@@ -130,10 +138,10 @@ curl -X POST \
 
 ## 7. 後片付け
 
-Terraform の管理下にあるリソースを削除する際は、`terraform destroy` を実行してください。
+Terraform の管理下にあるリソースを削除する際は、`make terraform-destroy` を実行してください。
 
 ```bash
-terraform destroy
+make terraform-destroy
 ```
 
 S3 バケットにオブジェクトが残っていると削除に失敗するため、事前に空にしてください。
