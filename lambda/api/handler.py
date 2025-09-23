@@ -10,12 +10,28 @@ import uuid
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
-import boto3
+try:
+    import boto3  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover - exercised only when boto3 missing locally
+    boto3 = None  # type: ignore
 
 LOGGER = logging.getLogger()
 LOGGER.setLevel(logging.INFO)
 
-BATCH_CLIENT = boto3.client("batch")
+def _create_batch_client():
+    if boto3 is None:  # pragma: no cover - exercised when boto3 unavailable
+        class _MissingBatchClient:
+            def submit_job(self, **_: Any) -> Dict[str, Any]:  # noqa: ANN401 - dynamic payload from boto3
+                raise RuntimeError(
+                    "boto3 is required to submit AWS Batch jobs; install boto3 to use this function"
+                )
+
+        return _MissingBatchClient()
+
+    return boto3.client("batch")
+
+
+BATCH_CLIENT = _create_batch_client()
 
 JOB_QUEUE_ARN = os.environ["JOB_QUEUE_ARN"]
 JOB_DEFINITION_ARN = os.environ["JOB_DEFINITION_ARN"]

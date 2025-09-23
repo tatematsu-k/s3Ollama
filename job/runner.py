@@ -11,13 +11,30 @@ import tempfile
 from pathlib import Path
 from typing import List
 
-import boto3
+try:
+    import boto3  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover - exercised only when boto3 missing locally
+    boto3 = None  # type: ignore
 
 LOGGER = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
-S3_CLIENT = boto3.client("s3")
-SNS_CLIENT = boto3.client("sns")
+def _create_boto3_client(service_name: str):
+    if boto3 is None:  # pragma: no cover - exercised when boto3 unavailable
+        class _MissingClient:
+            def __getattr__(self, item: str):
+                raise RuntimeError(
+                    "boto3 is required for service '%s'; attempted to access '%s'. "
+                    "Install boto3 to use this functionality." % (service_name, item)
+                )
+
+        return _MissingClient()
+
+    return boto3.client(service_name)
+
+
+S3_CLIENT = _create_boto3_client("s3")
+SNS_CLIENT = _create_boto3_client("sns")
 
 
 def _required_env(name: str) -> str:

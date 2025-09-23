@@ -3,6 +3,7 @@ DOCKER_IMAGE ?= $(PROJECT_NAME)-dev
 PYTHON ?= python3
 DOCKER_RUN_FLAGS ?= --rm -t -v $(PWD):/workspace -w /workspace
 DOCKER_RUN ?= docker run $(DOCKER_RUN_FLAGS) $(DOCKER_IMAGE)
+PYTEST_SCRIPT ?= ./scripts/run_pytest.sh
 
 .DEFAULT_GOAL := help
 
@@ -21,15 +22,24 @@ install-docker: ensure-image ## Install dependencies inside Docker image (rebuil
 
 .PHONY: ensure-image
 ensure-image: ## Ensure the development Docker image exists
-	@docker image inspect $(DOCKER_IMAGE) > /dev/null 2>&1 || $(MAKE) docker-build
+	@if command -v docker >/dev/null 2>&1; then \
+		docker image inspect $(DOCKER_IMAGE) > /dev/null 2>&1 || $(MAKE) docker-build; \
+	else \
+		echo "Docker CLI not available; skipping image inspection"; \
+	fi
 
 .PHONY: test
 test: ensure-image ## Run unit tests inside Docker
-	$(DOCKER_RUN) pytest --cov=lambda --cov=job --cov-report=term-missing
+	@if command -v docker >/dev/null 2>&1; then \
+		$(DOCKER_RUN) $(PYTEST_SCRIPT); \
+	else \
+		echo "Docker CLI not available; running tests on the host"; \
+		$(PYTEST_SCRIPT); \
+	fi
 
 .PHONY: test-local
 test-local: ## Run unit tests locally without Docker
-	pytest --cov=lambda --cov=job --cov-report=term-missing
+	$(PYTEST_SCRIPT)
 
 .PHONY: lint
 lint: ensure-image ## Run basic static checks inside Docker

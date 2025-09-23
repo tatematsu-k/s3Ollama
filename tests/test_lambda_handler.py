@@ -1,10 +1,15 @@
 import importlib
 import json
 import os
+import sys
+from dataclasses import dataclass
+from pathlib import Path
 from types import ModuleType
+from typing import Any, Dict, List
 
 import pytest
-from botocore.stub import Stubber
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
 @pytest.fixture
@@ -21,6 +26,20 @@ def handler(monkeypatch) -> ModuleType:
     return module
 
 
+@dataclass
+class RecordingCall:
+    request: Dict[str, Any]
+
+
+class RecordingBatchClient:
+    def __init__(self) -> None:
+        self.calls: List[RecordingCall] = []
+
+    def submit_job(self, **payload: Any) -> Dict[str, Any]:  # noqa: ANN401 - boto3 payload is dynamic
+        self.calls.append(RecordingCall(request=payload))
+        return {"jobName": payload.get("jobName", ""), "jobId": "1234567890"}
+
+
 def test_submit_job_payload_defaults(handler):
     payload = handler.SubmitJobPayload.from_dict({"s3_prefix": "input/prefix"})
 
@@ -33,6 +52,9 @@ def test_submit_job_payload_defaults(handler):
 
 
 def test_lambda_handler_success(handler):
+    client = RecordingBatchClient()
+    handler.BATCH_CLIENT = client
+
     event = {
         "body": json.dumps(
             {
@@ -67,16 +89,13 @@ def test_lambda_handler_success(handler):
         "timeout": {"attemptDurationSeconds": 900},
     }
 
-    response_payload = {"jobName": "ollama-test", "jobId": "1234567890"}
-
-    with Stubber(handler.BATCH_CLIENT) as stubber:
-        stubber.add_response("submit_job", response_payload, expected_request)
-        response = handler.lambda_handler(event, None)
+    response = handler.lambda_handler(event, None)
 
     assert response["statusCode"] == 202
     body = json.loads(response["body"])
     assert body["jobId"] == "1234567890"
     assert body["jobName"] == "ollama-test"
+    assert client.calls == [RecordingCall(request=expected_request)]
 
 
 @pytest.mark.parametrize("event", [{}, {"body": "not-json"}])
