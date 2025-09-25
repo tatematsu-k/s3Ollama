@@ -15,20 +15,38 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - exercised only when boto3 missing locally
     boto3 = None  # type: ignore
 
+try:
+    from botocore.exceptions import NoRegionError  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover - exercised when botocore isn't installed
+    class NoRegionError(Exception):  # type: ignore
+        """Fallback used when botocore isn't available locally."""
+
+        pass
+
 LOGGER = logging.getLogger()
 LOGGER.setLevel(logging.INFO)
 
+class _MissingBatchClient:
+    """Placeholder returned when a real boto3 Batch client can't be created."""
+
+    def __init__(self, reason: str) -> None:
+        self._reason = reason
+
+    def submit_job(self, **_: Any) -> Dict[str, Any]:  # noqa: ANN401 - boto3 payload is dynamic
+        raise RuntimeError(
+            "Unable to create boto3 Batch client: %s. Configure AWS credentials/region and install boto3."
+            % self._reason
+        )
+
+
 def _create_batch_client():
     if boto3 is None:  # pragma: no cover - exercised when boto3 unavailable
-        class _MissingBatchClient:
-            def submit_job(self, **_: Any) -> Dict[str, Any]:  # noqa: ANN401 - dynamic payload from boto3
-                raise RuntimeError(
-                    "boto3 is required to submit AWS Batch jobs; install boto3 to use this function"
-                )
+        return _MissingBatchClient("boto3 is not installed")
 
-        return _MissingBatchClient()
-
-    return boto3.client("batch")
+    try:
+        return boto3.client("batch")
+    except NoRegionError:  # pragma: no cover - exercised when AWS region is unset locally
+        return _MissingBatchClient("AWS region is not configured")
 
 
 BATCH_CLIENT = _create_batch_client()
