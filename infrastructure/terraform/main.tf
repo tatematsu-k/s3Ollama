@@ -114,8 +114,8 @@ resource "aws_security_group" "batch_compute" {
 
 resource "aws_batch_compute_environment" "ollama" {
   compute_environment_name = "${var.project}-${var.environment}-ollama"
-  service_role              = aws_iam_role.batch_service.arn
-  type                      = "MANAGED"
+  service_role             = aws_iam_role.batch_service.arn
+  type                     = "MANAGED"
 
   compute_resources {
     type                = "SPOT"
@@ -201,11 +201,11 @@ resource "aws_batch_job_definition" "ollama" {
   platform_capabilities = ["EC2"]
 
   container_properties = jsonencode({
-    image        = var.batch_job_image
-    vcpus        = var.job_vcpus
-    memory       = var.job_memory
-    command      = ["python3", "-m", "runner"]
-    jobRoleArn   = aws_iam_role.batch_job.arn
+    image      = var.batch_job_image
+    vcpus      = var.job_vcpus
+    memory     = var.job_memory
+    command    = ["python3", "-m", "runner"]
+    jobRoleArn = aws_iam_role.batch_job.arn
     logConfiguration = {
       logDriver = "awslogs"
       options = {
@@ -278,7 +278,7 @@ data "aws_iam_policy_document" "api_lambda_policy" {
   }
 
   statement {
-    sid     = "AllowLogs"
+    sid = "AllowLogs"
     actions = [
       "logs:CreateLogGroup",
       "logs:CreateLogStream",
@@ -321,11 +321,11 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = {
-      JOB_QUEUE_ARN     = aws_batch_job_queue.ollama.arn
-      JOB_DEFINITION_ARN = aws_batch_job_definition.ollama.arn
-      DEFAULT_VCPU      = tostring(var.job_vcpus)
-      DEFAULT_MEMORY    = tostring(var.job_memory)
-      DEFAULT_TIMEOUT   = tostring(var.job_timeout_seconds)
+      JOB_QUEUE_ARN       = aws_batch_job_queue.ollama.arn
+      JOB_DEFINITION_ARN  = aws_batch_job_definition.ollama.arn
+      DEFAULT_VCPU        = tostring(var.job_vcpus)
+      DEFAULT_MEMORY      = tostring(var.job_memory)
+      DEFAULT_TIMEOUT     = tostring(var.job_timeout_seconds)
       DEFAULT_PROMPT_FILE = var.default_prompt_file
       DEFAULT_OUTPUT_FILE = var.default_output_file
     }
@@ -359,7 +359,7 @@ resource "aws_apigatewayv2_stage" "default" {
 
   access_log_settings {
     destination_arn = aws_cloudwatch_log_group.api.arn
-    format          = jsonencode({
+    format = jsonencode({
       requestId = "$context.requestId"
       routeKey  = "$context.routeKey"
       status    = "$context.status"
