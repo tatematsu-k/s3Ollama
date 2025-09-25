@@ -49,7 +49,18 @@ def _create_batch_client():
         return _MissingBatchClient("AWS region is not configured")
 
 
-BATCH_CLIENT = _create_batch_client()
+BATCH_CLIENT: Any | None = None
+
+
+def _get_batch_client() -> Any:  # noqa: ANN401 - boto3 payload is dynamic
+    """Return a cached boto3 Batch client, initialising it on first use."""
+
+    global BATCH_CLIENT
+
+    if BATCH_CLIENT is None:
+        BATCH_CLIENT = _create_batch_client()
+
+    return BATCH_CLIENT
 
 JOB_QUEUE_ARN = os.environ["JOB_QUEUE_ARN"]
 JOB_DEFINITION_ARN = os.environ["JOB_DEFINITION_ARN"]
@@ -156,7 +167,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:  # pr
         request["timeout"] = {"attemptDurationSeconds": submit_payload.timeout_seconds}
 
     LOGGER.info("Submitting job: %s", json.dumps(request))
-    response = BATCH_CLIENT.submit_job(**request)
+    response = _get_batch_client().submit_job(**request)
 
     LOGGER.info("SubmitJob response: %s", json.dumps(response, default=str))
 

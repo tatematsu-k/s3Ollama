@@ -9,7 +9,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import List
+from typing import Any, List
 
 try:
     import boto3  # type: ignore
@@ -54,8 +54,26 @@ def _create_boto3_client(service_name: str):
         )
 
 
-S3_CLIENT = _create_boto3_client("s3")
-SNS_CLIENT = _create_boto3_client("sns")
+S3_CLIENT: Any | None = None
+SNS_CLIENT: Any | None = None
+
+
+def _get_s3_client() -> Any:  # noqa: ANN401 - boto3 payload is dynamic
+    global S3_CLIENT
+
+    if S3_CLIENT is None:
+        S3_CLIENT = _create_boto3_client("s3")
+
+    return S3_CLIENT
+
+
+def _get_sns_client() -> Any:  # noqa: ANN401 - boto3 payload is dynamic
+    global SNS_CLIENT
+
+    if SNS_CLIENT is None:
+        SNS_CLIENT = _create_boto3_client("sns")
+
+    return SNS_CLIENT
 
 
 def _required_env(name: str) -> str:
@@ -70,7 +88,9 @@ def _download_prefix(bucket: str, prefix: str, destination: Path) -> List[Path]:
     destination.mkdir(parents=True, exist_ok=True)
 
     downloaded: List[Path] = []
-    paginator = S3_CLIENT.get_paginator("list_objects_v2")
+    s3_client = _get_s3_client()
+
+    paginator = s3_client.get_paginator("list_objects_v2")
     for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
         for obj in page.get("Contents", []):
             key = obj["Key"]
@@ -80,7 +100,7 @@ def _download_prefix(bucket: str, prefix: str, destination: Path) -> List[Path]:
             target = destination / rel
             target.parent.mkdir(parents=True, exist_ok=True)
             LOGGER.info("Downloading %s to %s", key, target)
-            S3_CLIENT.download_file(bucket, key, str(target))
+            s3_client.download_file(bucket, key, str(target))
             downloaded.append(target)
     return downloaded
 
@@ -125,7 +145,7 @@ def _publish_sns(topic_arn: str, subject: str, payload: dict) -> None:
 
     message = json.dumps(payload, ensure_ascii=False, indent=2)
     LOGGER.info("Publishing SNS notification to %s", topic_arn)
-    SNS_CLIENT.publish(TopicArn=topic_arn, Subject=subject[:100], Message=message)
+    _get_sns_client().publish(TopicArn=topic_arn, Subject=subject[:100], Message=message)
 
 
 def main() -> int:
@@ -151,7 +171,9 @@ def main() -> int:
         prompt_path = workdir / prompt_file
         prompt_path.parent.mkdir(parents=True, exist_ok=True)
         LOGGER.info("Downloading prompt file s3://%s/%s", input_bucket, prompt_key)
-        S3_CLIENT.download_file(input_bucket, prompt_key, str(prompt_path))
+        s3_client = _get_s3_client()
+
+        s3_client.download_file(input_bucket, prompt_key, str(prompt_path))
 
         prompt_content = _read_file(prompt_path)
         prompt_payload = _build_prompt(prompt_content, sorted(downloaded_contexts))
@@ -164,7 +186,7 @@ def main() -> int:
 
         output_key = f"{s3_prefix.rstrip('/')}/{output_file}"
         LOGGER.info("Uploading result to s3://%s/%s", output_bucket, output_key)
-        S3_CLIENT.upload_file(str(output_path), output_bucket, output_key)
+        s3_client.upload_file(str(output_path), output_bucket, output_key)
 
         _publish_sns(
             sns_topic_arn,
